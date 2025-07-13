@@ -22,15 +22,15 @@ public class KafkaProducerService : BackgroundService
 			new ProducerConfigParameters
 			{
 				MessageTimeout = TimeSpan.FromSeconds(3),
-				Linger = TimeSpan.FromMilliseconds(100),
-				BatchSize = 2097176,
+				Linger = TimeSpan.FromMilliseconds(5),
+				BatchSize = 524288,
 				MessageMaxBytes = 2097176,
 				SocketNagleDisable = true,
 				TopicMetadataPropagationMaxTimeout = TimeSpan.FromMilliseconds(700),
 				CompressionType = CompressionType.Gzip
 			},
 			enableIdempotence: false,
-			delayBeforeReproduce: TimeSpan.FromMilliseconds(1200));
+			delayBeforeReproduce: TimeSpan.FromMilliseconds(100));
 
 		_logger = logger;
 	}
@@ -45,30 +45,37 @@ public class KafkaProducerService : BackgroundService
 
 			var messages = Enumerable
 				.Range(counter, batchSize)
-				.Select(i => $"Message #{i} at {DateTime.UtcNow:O}");
+				.Select(i => $"Message #{i} at {DateTime.UtcNow:O}")
+				.ToList();
 
 			counter += batchSize;
 
-			var options = new ParallelOptions
+			var produceTasks = new List<Task>();
+
+			foreach (var message in messages)
 			{
-				MaxDegreeOfParallelism = 20,
-				CancellationToken = stoppingToken
-			};
+				_logger.LogInformation("Produced: {Message}", message);
 
-			await Parallel.ForEachAsync(
-				messages,
-				options,
-				async (message, token) =>
-				{
-					_logger.LogInformation("Produced: {Message}", message);
+				var task = _producer.ProduceAsync(
+					"localhost:29091,localhost:29092,localhost:29093",
+					"demo-topic",
+					message,
+					key: "some-key",
+					token: stoppingToken);
 
-					await _producer.ProduceAsync(
-						"localhost:29091,localhost:29092,localhost:29093",
-						"demo-topic",
-						message,
-						key: "some-key",
-						token: token);
-				});
+				produceTasks.Add(task);
+			}
+
+			try
+			{
+				await Task.WhenAll(produceTasks);
+			}
+			catch (Exception ex)
+			{
+				_logger.LogError(ex, "Error sending batch of messages");
+			}
+
+			await Task.Delay(10, stoppingToken);
 
 			if (counter > 1000)
 				throw new OperationCanceledException();
