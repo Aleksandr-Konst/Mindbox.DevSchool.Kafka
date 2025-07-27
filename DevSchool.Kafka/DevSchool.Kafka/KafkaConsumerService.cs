@@ -13,7 +13,7 @@ public class KafkaConsumerService : BackgroundService
         InternalChannelSize = 1000,
         CommitLogSize = 100 ,
         WorkerTaskCount = Environment.ProcessorCount,
-        CommitterDelay = TimeSpan.FromMilliseconds(100),
+        CommitterDelay = TimeSpan.FromMilliseconds(1000),
         SessionTimeoutMs = 9_000
     };
 

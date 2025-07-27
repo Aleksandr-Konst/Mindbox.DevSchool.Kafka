@@ -50,29 +50,23 @@ public class KafkaProducerService : BackgroundService
 
 			counter += batchSize;
 
-			var produceTasks = new List<Task>();
-
 			foreach (var message in messages)
 			{
-				_logger.LogInformation("Produced: {Message}", message);
+				try
+				{
+					_logger.LogInformation("Produced: {Message}", message);
 
-				var task = _producer.ProduceAsync(
-					"localhost:29091,localhost:29092,localhost:29093",
-					"demo-topic",
-					message,
-					key: "some-key",
-					token: stoppingToken);
-
-				produceTasks.Add(task);
-			}
-
-			try
-			{
-				await Task.WhenAll(produceTasks);
-			}
-			catch (Exception ex)
-			{
-				_logger.LogError(ex, "Error sending batch of messages");
+					await _producer.ProduceAsync(
+						"localhost:29091,localhost:29092,localhost:29093",
+						"demo-topic",
+						message,
+						key: "some-key",
+						token: stoppingToken);
+				}
+				catch (Exception ex)
+				{
+					_logger.LogError(ex, "Error sending message: {Message}", message);
+				}
 			}
 
 			await Task.Delay(10, stoppingToken);
@@ -100,6 +94,3 @@ public class KafkaProducerService : BackgroundService
 			configs: new Dictionary<string, string> { ["min.insync.replicas"] = "2" });
 	}
 }
-
-// 10.2607720Z
-// 26.1917490Z
